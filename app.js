@@ -1,391 +1,217 @@
-// TruckersMP VTC Availability Helper frontend logic
-// 1) Loads vtcs_source.json (your curated database).
-// 2) Takes TruckersMP event URLs from the textarea.
-// 3) Fetches each event page and extracts attending VTC IDs.
-// 4) Filters the database to show invite-ready VTCs.
-
-const VTC_STATUS_ORDER = {
-  verified: 0,
-  validated: 1,
-  normal: 2,
-};
+// Simple front-end viewer for vtcs_source.json
+// Assumes vtcs_source.json is in the same directory as index.html
 
 let allVtcs = [];
 
-/**
- * Extract event IDs from raw text containing TruckersMP event URLs.
- * Accepts URLs separated by whitespace / commas / newlines.
- */
-function parseEventIds(raw) {
-  if (!raw) return [];
-  const tokens = raw
-    .split(/[\s,]+/)
-    .map((t) => t.trim())
-    .filter(Boolean);
-
-  const ids = new Set();
-
-  const idRegex = /events\/(\d+)/i;
-
-  tokens.forEach((token) => {
-    const match = token.match(idRegex);
-    if (match && match[1]) {
-      const num = Number(match[1]);
-      if (!Number.isNaN(num)) ids.add(num);
-    }
-  });
-
-  return Array.from(ids);
-}
-
-/**
- * Given an event ID, fetch the TruckersMP event page and
- * extract all attending VTC IDs.
- *
- * NOTE: This may fail if TruckersMP blocks cross-origin requests (CORS).
- */
-async function fetchVtcIdsForEvent(eventId) {
-  const url = `https://truckersmp.com/events/${eventId}`;
+async function loadVtcs() {
+  const statusMessage = document.getElementById("statusMessage");
   try {
-    const res = await fetch(url, { mode: "cors" });
-    if (!res.ok) {
-      console.warn(`Failed to fetch event ${eventId}:`, res.status);
-      return [];
+    statusMessage.textContent = "Loading vtcs_source.json...";
+    const response = await fetch("vtcs_source.json");
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
     }
-    const html = await res.text();
-
-    // Look for .../vtc/12345 links
-    const re = /\/vtc\/(\d+)/g;
-    const ids = new Set();
-    let match;
-    while ((match = re.exec(html)) !== null) {
-      const idNum = Number(match[1]);
-      if (!Number.isNaN(idNum)) ids.add(idNum);
+    const data = await response.json();
+    if (!Array.isArray(data)) {
+      throw new Error("vtcs_source.json must be an array of VTC objects");
     }
-    return Array.from(ids);
+    allVtcs = data;
+    statusMessage.textContent = `Loaded ${allVtcs.length} VTCs from vtcs_source.json.`;
   } catch (err) {
-    console.warn(`Error fetching event ${eventId}:`, err);
-    return [];
+    console.error(err);
+    statusMessage.textContent =
+      "Error loading vtcs_source.json. Check that it exists in the repo root.";
   }
 }
 
-/**
- * Fetch VTC IDs from multiple event IDs.
- */
-async function fetchBusyVtcsFromEvents(eventIds, onProgress) {
-  const busyIds = new Set();
-
-  for (let i = 0; i < eventIds.length; i++) {
-    const id = eventIds[i];
-    if (onProgress) onProgress(i + 1, eventIds.length, id);
-    const vtcs = await fetchVtcIdsForEvent(id);
-    vtcs.forEach((vtcId) => busyIds.add(vtcId));
+function parseBusyIds(raw) {
+  if (!raw) return new Set();
+  const parts = raw
+    .split(/[\s,]+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const ids = new Set();
+  for (const p of parts) {
+    const num = parseInt(p, 10);
+    if (!Number.isNaN(num)) ids.add(num);
   }
-
-  return busyIds;
+  return ids;
 }
 
-/**
- * Apply filters to the global VTC list and return a new filtered array.
- */
-function filterVtcs(busyIdSet, filters) {
-  return allVtcs.filter((vtc) => {
-    const id = Number(vtc.id);
+function groupAndRender() {
+  const busyRaw = document.getElementById("busyIdsInput").value;
+  const busyIds = parseBusyIds(busyRaw);
 
-    if (busyIdSet.has(id)) return false;
+  const statusCheckboxes = Array.from(
+    document.querySelectorAll(".status-filter")
+  );
+  const allowedStatuses = new Set(
+    statusCheckboxes
+      .filter((cb) => cb.checked)
+      .map((cb) => cb.value.toLowerCase())
+  );
 
-    const status = (vtc.status || "normal").toLowerCase();
-    if (status === "verified" && !filters.verified) return false;
-    if (status === "validated" && !filters.validated) return false;
-    if (status === "normal" && !filters.normal) return false;
+  const recruitmentOpenOnly = document.getElementById(
+    "recruitmentOpenOnly"
+  ).checked;
 
-    if (filters.recruitmentOpenOnly) {
-      const recruitment = (vtc.recruitment || "").toUpperCase();
-      if (recruitment !== "OPEN") return false;
-    }
+  const resultsContainer = document.getElementById("resultsContainer");
+  resultsContainer.innerHTML = "";
 
-    return true;
-  });
-}
-
-/**
- * Sort VTCs by status group, then by member count (descending), then name.
- */
-function sortVtcs(vtcs) {
-  return [...vtcs].sort((a, b) => {
-    const statusA = (a.status || "normal").toLowerCase();
-    const statusB = (b.status || "normal").toLowerCase();
-
-    const rankA = VTC_STATUS_ORDER[statusA] ?? 99;
-    const rankB = VTC_STATUS_ORDER[statusB] ?? 99;
-    if (rankA !== rankB) return rankA - rankB;
-
-    const membersA = Number(a.members || 0);
-    const membersB = Number(b.members || 0);
-    if (membersA !== membersB) return membersB - membersA;
-
-    const nameA = (a.name || "").toLowerCase();
-    const nameB = (b.name || "").toLowerCase();
-    return nameA.localeCompare(nameB);
-  });
-}
-
-/**
- * Group VTCs by status for nicer UI sections.
- */
-function groupByStatus(vtcs) {
-  const groups = { verified: [], validated: [], normal: [] };
-  vtcs.forEach((vtc) => {
-    const status = (vtc.status || "normal").toLowerCase();
-    if (status === "verified") groups.verified.push(vtc);
-    else if (status === "validated") groups.validated.push(vtc);
-    else groups.normal.push(vtc);
-  });
-  return groups;
-}
-
-/**
- * Render the stats chip & summary text.
- */
-function renderSummary(filtered, busyIdSet, eventCount, hadErrors) {
-  const summaryText = document.getElementById("summary-text");
-  const statsChip = document.getElementById("stats-chip");
-
-  const total = allVtcs.length;
-  const filteredCount = filtered.length;
-  const busyCount = busyIdSet.size;
-
-  let base = `Scanned ${eventCount} event(s). Found ${busyCount} busy VTC ID(s). Showing ${filteredCount} invite-ready VTC(s) out of ${total} total.`;
-  if (hadErrors) {
-    base +=
-      " Some events could not be fetched (CORS or network error), so results may be incomplete.";
-  }
-
-  summaryText.textContent = base;
-
-  if (filteredCount > 0) {
-    statsChip.classList.remove("hidden");
-    statsChip.textContent = `${filteredCount} invite-ready VTC${
-      filteredCount === 1 ? "" : "s"
-    }`;
-  } else {
-    statsChip.classList.add("hidden");
-  }
-}
-
-/**
- * Render VTC cards into the right-hand list.
- */
-function renderResults(filtered) {
-  const container = document.getElementById("results-container");
-  container.innerHTML = "";
-
-  if (!filtered.length) {
-    const p = document.createElement("p");
-    p.textContent =
-      "No VTCs matched your filters. Try unchecking some filters or checking your event links.";
-    p.className = "panel-subtitle";
-    container.appendChild(p);
+  if (!allVtcs.length) {
+    const msg = document.createElement("p");
+    msg.className = "help-text";
+    msg.textContent =
+      "No VTCs loaded yet. Make sure vtcs_source.json exists and reloaded the page.";
+    resultsContainer.appendChild(msg);
     return;
   }
 
-  const grouped = groupByStatus(filtered);
+  // Filter
+  const filtered = allVtcs.filter((vtc) => {
+    const id = Number(vtc.id);
+    if (busyIds.has(id)) return false;
 
-  function renderGroup(title, list, statusKey) {
-    if (!list.length) return;
+    const status =
+      (vtc.status || "normal").toString().toLowerCase().trim();
+    if (!allowedStatuses.has(status)) return false;
 
-    const header = document.createElement("div");
-    header.className = "vtc-group-header";
-    header.textContent = `${title} (${list.length} VTC${
-      list.length === 1 ? "" : "s"
-    })`;
-    container.appendChild(header);
+    const recruitment = (vtc.recruitment || "").toString().toUpperCase();
+    if (recruitmentOpenOnly && recruitment !== "OPEN") return false;
 
-    list.forEach((vtc) => {
-      const card = document.createElement("div");
+    return true;
+  });
+
+  // Group by status
+  const groups = {
+    verified: [],
+    validated: [],
+    normal: [],
+  };
+
+  for (const v of filtered) {
+    const status = (v.status || "normal").toLowerCase();
+    if (status === "verified") groups.verified.push(v);
+    else if (status === "validated") groups.validated.push(v);
+    else groups.normal.push(v);
+  }
+
+  // Sort each group alphabetically by name
+  for (const key of Object.keys(groups)) {
+    groups[key].sort((a, b) =>
+      (a.name || "").localeCompare(b.name || "", undefined, {
+        sensitivity: "base",
+      })
+    );
+  }
+
+  const order = [
+    ["verified", "Verified VTCs", "group-title--verified"],
+    ["validated", "Validated VTCs", "group-title--validated"],
+    ["normal", "Normal VTCs", "group-title--normal"],
+  ];
+
+  let totalCount = 0;
+
+  for (const [key, label, className] of order) {
+    const list = groups[key];
+    if (!list.length) continue;
+    totalCount += list.length;
+
+    const groupBlock = document.createElement("div");
+    groupBlock.className = "group-block";
+
+    const title = document.createElement("h3");
+    title.className = `group-title ${className}`;
+    title.innerHTML = `
+      ${label}
+      <span class="group-pill">${list.length} VTC(s)</span>
+    `;
+    groupBlock.appendChild(title);
+
+    const vtcList = document.createElement("div");
+    vtcList.className = "vtc-list";
+
+    for (const vtc of list) {
+      const card = document.createElement("article");
       card.className = "vtc-card";
 
-      // Left side: logo + text
-      const main = document.createElement("div");
-      main.className = "vtc-main";
+      const header = document.createElement("div");
+      header.className = "vtc-header";
 
-      const logo = document.createElement("div");
-      logo.className = "vtc-logo";
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "vtc-name";
+      nameSpan.textContent = vtc.name || `VTC ${vtc.id}`;
 
-      if (vtc.logo) {
-        const img = document.createElement("img");
-        img.src = vtc.logo;
-        img.alt = `${vtc.name} logo`;
-        logo.appendChild(img);
-      } else {
-        const fallback = document.createElement("span");
-        fallback.className = "vtc-logo-fallback";
-        fallback.textContent = (vtc.name || "VTC").slice(0, 3).toUpperCase();
-        logo.appendChild(fallback);
-      }
-
-      const textBlock = document.createElement("div");
-      textBlock.className = "vtc-text-block";
-
-      const nameRow = document.createElement("div");
-      nameRow.className = "vtc-name-row";
-
-      const name = document.createElement("div");
-      name.className = "vtc-name";
-      name.textContent = vtc.name || "Unnamed VTC";
-
-      const idSpan = document.createElement("div");
+      const idSpan = document.createElement("span");
       idSpan.className = "vtc-id";
       idSpan.textContent = `ID ${vtc.id}`;
 
-      nameRow.appendChild(name);
-      nameRow.appendChild(idSpan);
-      textBlock.appendChild(nameRow);
+      header.appendChild(nameSpan);
+      header.appendChild(idSpan);
+      card.appendChild(header);
 
-      const secondary = document.createElement("div");
-      secondary.className = "vtc-secondary-line";
-      const members = vtc.members != null ? `• ${vtc.members} member(s)` : "";
-      const games = vtc.games
-        ? `• ${vtc.games.toUpperCase().replace(/,/g, " / ")}`
-        : "";
-      secondary.textContent = [members, games].filter(Boolean).join(" ");
-      textBlock.appendChild(secondary);
+      const meta = document.createElement("div");
+      meta.className = "vtc-meta";
 
-      const badgesRow = document.createElement("div");
-      badgesRow.className = "badges-row";
+      // TMP link
+      const tmpLink = document.createElement("a");
+      tmpLink.href = `https://truckersmp.com/vtc/${vtc.id}`;
+      tmpLink.target = "_blank";
+      tmpLink.rel = "noopener noreferrer";
+      tmpLink.textContent = "TMP profile";
+      meta.appendChild(tmpLink);
 
-      const statusBadge = document.createElement("span");
-      statusBadge.className = `badge badge-status-${statusKey}`;
-      statusBadge.textContent = statusKey.toUpperCase();
-      badgesRow.appendChild(statusBadge);
-
-      if ((vtc.recruitment || "").toUpperCase() === "OPEN") {
-        const recBadge = document.createElement("span");
-        recBadge.className = "badge badge-recruit-open";
-        recBadge.textContent = "RECRUITMENT: OPEN";
-        badgesRow.appendChild(recBadge);
-      }
-
-      textBlock.appendChild(badgesRow);
-
-      main.appendChild(logo);
-      main.appendChild(textBlock);
-
-      // Right side: icons
-      const actions = document.createElement("div");
-      actions.className = "vtc-actions";
-
-      if (vtc.tmp_url) {
-        const tmpLink = document.createElement("a");
-        tmpLink.href = vtc.tmp_url;
-        tmpLink.target = "_blank";
-        tmpLink.rel = "noreferrer";
-        tmpLink.className = "icon-link";
-        tmpLink.title = "Open TruckersMP profile";
-        const span = document.createElement("span");
-        span.textContent = "TMP";
-        tmpLink.appendChild(span);
-        actions.appendChild(tmpLink);
-      }
-
+      // Discord link (if present)
       if (vtc.discord) {
-        const discLink = document.createElement("a");
-        discLink.href = vtc.discord;
-        discLink.target = "_blank";
-        discLink.rel = "noreferrer";
-        discLink.className = "icon-link";
-        discLink.title = "Open Discord invite";
-        const span = document.createElement("span");
-        span.textContent = "DC";
-        discLink.appendChild(span);
-        actions.appendChild(discLink);
+        const discordLink = document.createElement("a");
+        discordLink.href = vtc.discord;
+        discordLink.target = "_blank";
+        discordLink.rel = "noopener noreferrer";
+        discordLink.textContent = "Discord";
+        meta.appendChild(discordLink);
       }
 
-      card.appendChild(main);
-      card.appendChild(actions);
+      // Recruitment badge
+      const recruitment = (vtc.recruitment || "").toUpperCase();
+      if (recruitment) {
+        const badge = document.createElement("span");
+        badge.className =
+          "badge" + (recruitment === "OPEN" ? " badge--open" : "");
+        badge.textContent = `Recruitment: ${recruitment}`;
+        meta.appendChild(badge);
+      }
 
-      container.appendChild(card);
-    });
+      card.appendChild(meta);
+      vtcList.appendChild(card);
+    }
+
+    groupBlock.appendChild(vtcList);
+    resultsContainer.appendChild(groupBlock);
   }
 
-  renderGroup("Verified VTCs", grouped.verified, "verified");
-  renderGroup("Validated VTCs", grouped.validated, "validated");
-  renderGroup("Normal VTCs", grouped.normal, "normal");
+  if (!totalCount) {
+    const msg = document.createElement("p");
+    msg.className = "help-text";
+    msg.textContent =
+      "No VTCs match your filters (or everything is busy). Try clearing the busy IDs or relaxing filters.";
+    resultsContainer.appendChild(msg);
+  }
+
+  const statusMessage = document.getElementById("statusMessage");
+  statusMessage.textContent = `Showing ${totalCount} VTC(s) after filtering.`;
 }
 
-/**
- * Load vtcs_source.json on page load.
- */
-async function loadVtcs() {
-  try {
-    const res = await fetch("vtcs_source.json", { cache: "no-store" });
-    if (!res.ok) {
-      console.error("Failed to load vtcs_source.json", res.status);
-      return;
-    }
-    const data = await res.json();
-    if (Array.isArray(data)) {
-      allVtcs = data;
-    } else if (Array.isArray(data.vtcs)) {
-      allVtcs = data.vtcs;
-    } else {
-      console.error("Unexpected JSON structure in vtcs_source.json");
-      allVtcs = [];
-    }
-  } catch (err) {
-    console.error("Error loading vtcs_source.json", err);
-    allVtcs = [];
-  }
-}
+document.addEventListener("DOMContentLoaded", () => {
+  loadVtcs();
 
-/**
- * Main initialization.
- */
-document.addEventListener("DOMContentLoaded", async () => {
-  await loadVtcs();
+  const btn = document.getElementById("applyFiltersBtn");
+  btn.addEventListener("click", groupAndRender);
 
-  const linksInput = document.getElementById("event-links-input");
-  const btn = document.getElementById("scan-btn");
-  const summaryText = document.getElementById("summary-text");
-
-  async function runScan() {
-    const raw = linksInput.value;
-    const eventIds = parseEventIds(raw);
-
-    if (!eventIds.length) {
-      summaryText.textContent =
-        "No valid TruckersMP event IDs found. Please paste event links like https://truckersmp.com/events/30724-...";
-      renderResults([]);
-      document.getElementById("stats-chip").classList.add("hidden");
-      return;
-    }
-
-    summaryText.textContent = `Scanning ${eventIds.length} event(s)...`;
-
-    let hadErrors = false;
-    const busyIdSet = await fetchBusyVtcsFromEvents(eventIds, (current, total, id) => {
-      summaryText.textContent = `Scanning event ${current}/${total} (ID ${id})...`;
+  // Also re-run when status / recruitment filters change
+  document
+    .querySelectorAll(".status-filter, #recruitmentOpenOnly")
+    .forEach((el) => {
+      el.addEventListener("change", groupAndRender);
     });
-
-    // If we couldn’t fetch anything at all, mark as error.
-    if (!busyIdSet.size) {
-      hadErrors = true;
-    }
-
-    const filters = {
-      verified: document.getElementById("filter-verified").checked,
-      validated: document.getElementById("filter-validated").checked,
-      normal: document.getElementById("filter-normal").checked,
-      recruitmentOpenOnly: document.getElementById("filter-recruitment-open").checked,
-    };
-
-    const filtered = sortVtcs(filterVtcs(busyIdSet, filters));
-    renderSummary(filtered, busyIdSet, eventIds.length, hadErrors);
-    renderResults(filtered);
-  }
-
-  btn.addEventListener("click", (e) => {
-    e.preventDefault();
-    runScan();
-  });
 });

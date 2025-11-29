@@ -3,143 +3,70 @@
 <head>
   <meta charset="UTF-8" />
   <title>TruckersMP VTC Availability Helper</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="style.css" />
-  <script defer src="app.js"></script>
 </head>
 <body>
-  <div class="page-shell">
-    <!-- Top hero / header -->
-    <header class="hero">
-      <div class="hero-left">
-        <div class="app-logo">
-          <span class="logo-text">VA</span>
-        </div>
-        <div>
-          <h1>TRUCKERSMP VTC AVAILABILITY HELPER</h1>
-          <p class="hero-subtitle">
-            Find VTCs that are free on your convoy date, based on real TruckersMP event data.
-          </p>
-
-          <div class="hero-pill">
-            <span class="pill-label">PASTE</span>
-            <span class="pill-text">
-              TruckersMP event links
-              <span class="pill-text-muted">from your date &amp; get invite-ready VTC suggestions.</span>
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div class="hero-right">
-        <a
-          href="https://truckersmp.com/events"
-          target="_blank"
-          rel="noreferrer"
-          class="link-button"
-        >
-          OPEN TRUCKERSMP EVENTS PAGE
-        </a>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="header-left">
+        <h1>TruckersMP VTC Availability Helper</h1>
+        <p class="subtitle">
+          Web viewer for your <code>vtcs_source.json</code>. Paste busy VTC IDs from your Python tool,
+          set filters, and get invite suggestions with TMP &amp; Discord links.
+        </p>
       </div>
     </header>
 
-    <main class="layout">
-      <!-- LEFT: Event links & filters -->
-      <section class="panel panel-left">
-        <h2>1. PASTE YOUR EVENT LINKS</h2>
-
-        <p>
-          1)&nbsp;Copy every
-          <strong>TruckersMP event URL</strong> scheduled for the date of your convoy
-          (including <strong>your own event link</strong>).<br />
-          2)&nbsp;Paste all of those links into the box below (one per line or separated by spaces).<br />
-          3)&nbsp;Click <strong>Scan events &amp; apply filters</strong>. We’ll fetch each event page,
-          detect which VTCs are already attending, and show you who is free to invite.
+    <main class="app-main">
+      <section class="panel panel-input">
+        <h2>1. Busy VTCs from events</h2>
+        <p class="help-text">
+          After you run your Python script, copy the list of VTC IDs that are
+          <strong>busy</strong> (attending other events) and paste them here.
+          Example: <code>7, 387, 65204, 74351</code>
         </p>
+        <textarea id="busyIdsInput" rows="4" placeholder="e.g. 7, 387, 65204, 74351"></textarea>
 
-        <p class="hint">
-          The website automatically turns your
-          <strong>event URLs</strong> into a list of busy <strong>VTC IDs</strong> by scraping the
-          TruckersMP event pages in the background.
-        </p>
-
-        <div class="card input-card">
-          <label for="event-links-input" class="input-label">
-            TruckersMP event URLs (one per line):
-          </label>
-          <textarea
-            id="event-links-input"
-            placeholder="https://truckersmp.com/events/30724-tccr-monthly-convoy...
-https://truckersmp.com/events/31728-kaessbohrer-group-opening-convoy
-..."
-          ></textarea>
-        </div>
-
-        <!-- Filters block -->
         <div class="filters-grid">
-          <div class="card filter-card">
-            <h3>Filters</h3>
+          <div class="filter-group">
+            <h3>Status filter</h3>
+            <label><input type="checkbox" class="status-filter" value="verified" checked /> Verified</label>
+            <label><input type="checkbox" class="status-filter" value="validated" checked /> Validated</label>
+            <label><input type="checkbox" class="status-filter" value="normal" checked /> Normal</label>
+          </div>
 
-            <label class="checkbox-row">
-              <input type="checkbox" id="filter-verified" checked />
-              <span>Verified</span>
-            </label>
-
-            <label class="checkbox-row">
-              <input type="checkbox" id="filter-validated" checked />
-              <span>Validated</span>
-            </label>
-
-            <label class="checkbox-row">
-              <input type="checkbox" id="filter-normal" checked />
-              <span>Normal</span>
-            </label>
-
-            <label class="checkbox-row checkbox-row-accent">
-              <input type="checkbox" id="filter-recruitment-open" checked />
-              <span>Only VTCs with recruitment <strong>OPEN</strong></span>
+          <div class="filter-group">
+            <h3>Recruitment</h3>
+            <label>
+              <input type="checkbox" id="recruitmentOpenOnly" checked />
+              Only VTCs with recruitment <strong>OPEN</strong>
             </label>
           </div>
         </div>
 
-        <button id="scan-btn">SCAN EVENTS &amp; APPLY FILTERS</button>
-
-        <p id="summary-text" class="summary-text">
-          Waiting for event links. No scan has been run yet.
-        </p>
+        <button id="applyFiltersBtn" class="primary-btn">Apply filters</button>
+        <span id="statusMessage" class="status-message"></span>
       </section>
 
-      <!-- RIGHT: Suggested VTCs -->
-      <section class="panel panel-right">
-        <div class="panel-header">
-          <div>
-            <h2>2. SUGGESTED VTCS TO INVITE</h2>
-            <p class="panel-subtitle">
-              These VTCs are in the shared database, are not attending your pasted events, and match your filters.
-            </p>
-          </div>
-          <div id="stats-chip" class="stats-chip hidden"></div>
-        </div>
+      <section class="panel panel-results">
+        <h2>2. Suggested VTCs to invite</h2>
+        <p class="help-text">
+          These VTCs are in your <code>vtcs_source.json</code>, are not in the busy list,
+          and match your filters.
+        </p>
 
-        <div id="results-container" class="results-container">
-          <!-- JS will inject VTC cards here -->
+        <div id="resultsContainer">
+          <!-- JS will render groups here -->
         </div>
       </section>
     </main>
 
-    <footer class="footer">
-      <p>Developed by Noel &copy; 2025 &mdash; All rights reserved.</p>
-      <p>
-        Project:
-        <a
-          href="https://github.com/no3ll/TruckersMP-VTC-Availability-Scanner"
-          target="_blank"
-          rel="noreferrer"
-        >
-          TruckersMP-VTC-Availability-Scanner
-        </a>
-      </p>
+    <footer class="app-footer">
+      <span>Powered by your Python scraper + GitHub Pages.</span>
     </footer>
   </div>
+
+  <script src="app.js"></script>
 </body>
 </html>
