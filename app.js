@@ -1,6 +1,8 @@
 // TruckersMP VTC Availability Helper frontend logic
-// Loads vtcs_source.json, parses busy IDs from the textarea, applies filters,
-// and renders grouped VTC cards.
+// 1) Loads vtcs_source.json (your curated database).
+// 2) Takes TruckersMP event URLs from the textarea.
+// 3) Fetches each event page and extracts attending VTC IDs.
+// 4) Filters the database to show invite-ready VTCs.
 
 const VTC_STATUS_ORDER = {
   verified: 0,
@@ -11,18 +13,76 @@ const VTC_STATUS_ORDER = {
 let allVtcs = [];
 
 /**
- * Parse busy VTC IDs from the textarea.
- * Accepts comma/space/newline separated lists.
+ * Extract event IDs from raw text containing TruckersMP event URLs.
+ * Accepts URLs separated by whitespace / commas / newlines.
  */
-function parseBusyIds(raw) {
-  if (!raw) return new Set();
-  const ids = raw
+function parseEventIds(raw) {
+  if (!raw) return [];
+  const tokens = raw
     .split(/[\s,]+/)
-    .map((token) => token.trim())
-    .filter((token) => token.length > 0 && /^\d+$/.test(token))
-    .map((token) => Number(token));
+    .map((t) => t.trim())
+    .filter(Boolean);
 
-  return new Set(ids);
+  const ids = new Set();
+
+  const idRegex = /events\/(\d+)/i;
+
+  tokens.forEach((token) => {
+    const match = token.match(idRegex);
+    if (match && match[1]) {
+      const num = Number(match[1]);
+      if (!Number.isNaN(num)) ids.add(num);
+    }
+  });
+
+  return Array.from(ids);
+}
+
+/**
+ * Given an event ID, fetch the TruckersMP event page and
+ * extract all attending VTC IDs.
+ *
+ * NOTE: This may fail if TruckersMP blocks cross-origin requests (CORS).
+ */
+async function fetchVtcIdsForEvent(eventId) {
+  const url = `https://truckersmp.com/events/${eventId}`;
+  try {
+    const res = await fetch(url, { mode: "cors" });
+    if (!res.ok) {
+      console.warn(`Failed to fetch event ${eventId}:`, res.status);
+      return [];
+    }
+    const html = await res.text();
+
+    // Look for .../vtc/12345 links
+    const re = /\/vtc\/(\d+)/g;
+    const ids = new Set();
+    let match;
+    while ((match = re.exec(html)) !== null) {
+      const idNum = Number(match[1]);
+      if (!Number.isNaN(idNum)) ids.add(idNum);
+    }
+    return Array.from(ids);
+  } catch (err) {
+    console.warn(`Error fetching event ${eventId}:`, err);
+    return [];
+  }
+}
+
+/**
+ * Fetch VTC IDs from multiple event IDs.
+ */
+async function fetchBusyVtcsFromEvents(eventIds, onProgress) {
+  const busyIds = new Set();
+
+  for (let i = 0; i < eventIds.length; i++) {
+    const id = eventIds[i];
+    if (onProgress) onProgress(i + 1, eventIds.length, id);
+    const vtcs = await fetchVtcIdsForEvent(id);
+    vtcs.forEach((vtcId) => busyIds.add(vtcId));
+  }
+
+  return busyIds;
 }
 
 /**
@@ -49,8 +109,7 @@ function filterVtcs(busyIdSet, filters) {
 }
 
 /**
- * Sort VTCs by status group, then by member count (descending),
- * then by name.
+ * Sort VTCs by status group, then by member count (descending), then name.
  */
 function sortVtcs(vtcs) {
   return [...vtcs].sort((a, b) => {
@@ -88,7 +147,7 @@ function groupByStatus(vtcs) {
 /**
  * Render the stats chip & summary text.
  */
-function renderSummary(filtered, busyIdSet) {
+function renderSummary(filtered, busyIdSet, eventCount, hadErrors) {
   const summaryText = document.getElementById("summary-text");
   const statsChip = document.getElementById("stats-chip");
 
@@ -96,7 +155,13 @@ function renderSummary(filtered, busyIdSet) {
   const filteredCount = filtered.length;
   const busyCount = busyIdSet.size;
 
-  summaryText.textContent = `Showing ${filteredCount} VTC(s) after filtering. Busy list contains ${busyCount} ID(s).`;
+  let base = `Scanned ${eventCount} event(s). Found ${busyCount} busy VTC ID(s). Showing ${filteredCount} invite-ready VTC(s) out of ${total} total.`;
+  if (hadErrors) {
+    base +=
+      " Some events could not be fetched (CORS or network error), so results may be incomplete.";
+  }
+
+  summaryText.textContent = base;
 
   if (filteredCount > 0) {
     statsChip.classList.remove("hidden");
@@ -118,7 +183,7 @@ function renderResults(filtered) {
   if (!filtered.length) {
     const p = document.createElement("p");
     p.textContent =
-      "No VTCs matched your filters. Try unchecking some filters or checking your busy ID list.";
+      "No VTCs matched your filters. Try unchecking some filters or checking your event links.";
     p.className = "panel-subtitle";
     container.appendChild(p);
     return;
@@ -279,11 +344,33 @@ async function loadVtcs() {
 document.addEventListener("DOMContentLoaded", async () => {
   await loadVtcs();
 
-  const busyInput = document.getElementById("busy-ids-input");
-  const btn = document.getElementById("apply-filters-btn");
+  const linksInput = document.getElementById("event-links-input");
+  const btn = document.getElementById("scan-btn");
+  const summaryText = document.getElementById("summary-text");
 
-  function runFiltering() {
-    const busySet = parseBusyIds(busyInput.value);
+  async function runScan() {
+    const raw = linksInput.value;
+    const eventIds = parseEventIds(raw);
+
+    if (!eventIds.length) {
+      summaryText.textContent =
+        "No valid TruckersMP event IDs found. Please paste event links like https://truckersmp.com/events/30724-...";
+      renderResults([]);
+      document.getElementById("stats-chip").classList.add("hidden");
+      return;
+    }
+
+    summaryText.textContent = `Scanning ${eventIds.length} event(s)...`;
+
+    let hadErrors = false;
+    const busyIdSet = await fetchBusyVtcsFromEvents(eventIds, (current, total, id) => {
+      summaryText.textContent = `Scanning event ${current}/${total} (ID ${id})...`;
+    });
+
+    // If we couldn’t fetch anything at all, mark as error.
+    if (!busyIdSet.size) {
+      hadErrors = true;
+    }
 
     const filters = {
       verified: document.getElementById("filter-verified").checked,
@@ -292,16 +379,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       recruitmentOpenOnly: document.getElementById("filter-recruitment-open").checked,
     };
 
-    const filtered = sortVtcs(filterVtcs(busySet, filters));
-    renderSummary(filtered, busySet);
+    const filtered = sortVtcs(filterVtcs(busyIdSet, filters));
+    renderSummary(filtered, busyIdSet, eventIds.length, hadErrors);
     renderResults(filtered);
   }
 
   btn.addEventListener("click", (e) => {
     e.preventDefault();
-    runFiltering();
+    runScan();
   });
-
-  // Run once with default filters in case user wants to browse all
-  runFiltering();
 });

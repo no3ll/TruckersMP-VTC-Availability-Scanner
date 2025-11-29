@@ -22,7 +22,7 @@
           </p>
 
           <div class="hero-pill">
-            <span class="pill-label">Paste</span>
+            <span class="pill-label">PASTE</span>
             <span class="pill-text">
               TruckersMP event links
               <span class="pill-text-muted">from your date &amp; get invite-ready VTC suggestions.</span>
@@ -38,38 +38,39 @@
           rel="noreferrer"
           class="link-button"
         >
-          Open TruckersMP events page
+          OPEN TRUCKERSMP EVENTS PAGE
         </a>
       </div>
     </header>
 
     <main class="layout">
-      <!-- LEFT: Busy VTC input & filters -->
+      <!-- LEFT: Event links & filters -->
       <section class="panel panel-left">
-        <h2>1. PASTE YOUR EVENT LINKS (AND SCAN RESULT)</h2>
+        <h2>1. PASTE YOUR EVENT LINKS</h2>
 
         <p>
           1)&nbsp;Copy every
           <strong>TruckersMP event URL</strong> scheduled for the date of your convoy
           (including <strong>your own event link</strong>).<br />
-          2)&nbsp;On your PC, run the Python scanner with those links.<br />
-          3)&nbsp;Paste the <strong>busy VTC IDs</strong> that the script prints into the box below.
+          2)&nbsp;Paste all of those links into the box below (one per line or separated by spaces).<br />
+          3)&nbsp;Click <strong>Scan events &amp; apply filters</strong>. We’ll fetch each event page,
+          detect which VTCs are already attending, and show you who is free to invite.
         </p>
 
         <p class="hint">
-          This box expects <strong>VTC IDs</strong> (like
-          <code>7, 387, 65284</code>), not the event URLs themselves.
-          The Python tool turns your event links into those IDs.
+          The website automatically turns your
+          <strong>event URLs</strong> into a list of busy <strong>VTC IDs</strong> by scraping the
+          TruckersMP event pages in the background.
         </p>
 
         <div class="card input-card">
-          <label for="busy-ids-input" class="input-label">
-            Example (IDs from Python output):
+          <label for="event-links-input" class="input-label">
+            TruckersMP event URLs (one per line):
           </label>
           <textarea
-            id="busy-ids-input"
-            placeholder="7, 387, 65284
-72566
+            id="event-links-input"
+            placeholder="https://truckersmp.com/events/30724-tccr-monthly-convoy...
+https://truckersmp.com/events/31728-kaessbohrer-group-opening-convoy
 ..."
           ></textarea>
         </div>
@@ -101,10 +102,10 @@
           </div>
         </div>
 
-        <button id="apply-filters-btn">APPLY FILTERS</button>
+        <button id="scan-btn">SCAN EVENTS &amp; APPLY FILTERS</button>
 
         <p id="summary-text" class="summary-text">
-          Showing 0 VTC(s) after filtering. Busy list contains 0 ID(s).
+          Waiting for event links. No scan has been run yet.
         </p>
       </section>
 
@@ -114,7 +115,7 @@
           <div>
             <h2>2. SUGGESTED VTCS TO INVITE</h2>
             <p class="panel-subtitle">
-              These VTCs are in the shared database, are not in your busy list, and match your filters.
+              These VTCs are in the shared database, are not attending your pasted events, and match your filters.
             </p>
           </div>
           <div id="stats-chip" class="stats-chip hidden"></div>
@@ -127,7 +128,7 @@
     </main>
 
     <footer class="footer">
-      <p>Developed by Noel &copy; 2025 – All rights reserved.</p>
+      <p>Developed by Noel &copy; 2025 &mdash; All rights reserved.</p>
       <p>
         Project:
         <a
