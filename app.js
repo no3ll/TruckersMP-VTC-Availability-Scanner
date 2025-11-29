@@ -1,322 +1,307 @@
-// Simple client-side viewer for vtcs_source.json
+// TruckersMP VTC Availability Helper frontend logic
+// Loads vtcs_source.json, parses busy IDs from the textarea, applies filters,
+// and renders grouped VTC cards.
 
-const busyInput = document.getElementById("busyVtcsInput");
-const applyBtn = document.getElementById("applyFiltersBtn");
-const resultsContainer = document.getElementById("resultsContainer");
-const resultsSummary = document.getElementById("resultsSummary");
+const VTC_STATUS_ORDER = {
+  verified: 0,
+  validated: 1,
+  normal: 2,
+};
 
-const filterVerified = document.getElementById("filterVerified");
-const filterValidated = document.getElementById("filterValidated");
-const filterNormal = document.getElementById("filterNormal");
-const filterRecruitmentOpen = document.getElementById("filterRecruitmentOpen");
+let allVtcs = [];
 
-let VTC_DB = [];
-let lastFilteredCount = 0;
+/**
+ * Parse busy VTC IDs from the textarea.
+ * Accepts comma/space/newline separated lists.
+ */
+function parseBusyIds(raw) {
+  if (!raw) return new Set();
+  const ids = raw
+    .split(/[\s,]+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0 && /^\d+$/.test(token))
+    .map((token) => Number(token));
 
-// --- Utility helpers --------------------------------------------------------
-
-function parseBusyIds(text) {
-  const ids = new Set();
-  if (!text) return ids;
-  const matches = text.match(/\d{1,7}/g); // up to 7 digits
-  if (!matches) return ids;
-  for (const token of matches) {
-    const n = Number.parseInt(token, 10);
-    if (!Number.isNaN(n)) ids.add(n);
-  }
-  return ids;
+  return new Set(ids);
 }
 
-function groupByStatus(vtcs) {
-  const groups = {
-    verified: [],
-    validated: [],
-    normal: [],
-    unknown: [],
-  };
-  for (const vtc of vtcs) {
-    const s = (vtc.status || "unknown").toLowerCase();
-    if (s === "verified") groups.verified.push(vtc);
-    else if (s === "validated") groups.validated.push(vtc);
-    else if (s === "normal") groups.normal.push(vtc);
-    else groups.unknown.push(vtc);
-  }
-  return groups;
-}
+/**
+ * Apply filters to the global VTC list and return a new filtered array.
+ */
+function filterVtcs(busyIdSet, filters) {
+  return allVtcs.filter((vtc) => {
+    const id = Number(vtc.id);
 
-function recruitmentIsOpen(vtc) {
-  const r = (vtc.recruitment || "").toLowerCase();
-  if (!r) return false;
-  return r.includes("open");
-}
-
-// --- Rendering --------------------------------------------------------------
-
-function createIconTMP() {
-  const span = document.createElement("span");
-  span.className = "pill-icon";
-  span.innerHTML =
-    "<svg viewBox='0 0 20 20'><path d='M2 11h1l2.2-5.5A1 1 0 0 1 6.1 5h7.8a1 1 0 0 1 .9.6L17 11h1a1 1 0 0 1 0 2h-1v1.5A1.5 1.5 0 0 1 15.5 16h-11A1.5 1.5 0 0 1 3 14.5V13H2a1 1 0 1 1 0-2Zm4.4-4L5 11h10l-1.4-4H6.4Z'/></svg>";
-  return span;
-}
-
-function createIconDiscord() {
-  const span = document.createElement("span");
-  span.className = "pill-icon";
-  span.innerHTML =
-    "<svg viewBox='0 0 24 24'><path d='M20 4a4 4 0 0 0-2.82-1.76A14.89 14.89 0 0 0 14.17 2l-.34.68A13.12 13.12 0 0 0 9.8 2l-.35-.68a14.87 14.87 0 0 0-3-.24A4 4 0 0 0 3.64 4C2.34 7 2 10 2.16 13a4.83 4.83 0 0 0 1.61 3.34A10.42 10.42 0 0 0 7 18.41l.79-1.3A7.94 7.94 0 0 1 6 16.28l.36-.27a8.76 8.76 0 0 0 11.28 0l.36.27a7.94 7.94 0 0 1-1.84.83l.79 1.3a10.42 10.42 0 0 0 3.23-2.09A4.83 4.83 0 0 0 21.84 13C22 10 21.66 7 20 4ZM9.1 13.5c-.89 0-1.62-.82-1.62-1.82s.71-1.83 1.62-1.83S10.72 10.7 10.72 11.7 10 13.5 9.1 13.5Zm5.8 0c-.89 0-1.62-.82-1.62-1.82s.72-1.83 1.62-1.83 1.61.84 1.61 1.83-.72 1.82-1.61 1.82Z'/></svg>";
-  return span;
-}
-
-function renderVtcCard(vtc) {
-  const card = document.createElement("article");
-  card.className = "vtc-card";
-
-  // Logo
-  const logoWrapper = document.createElement("div");
-  logoWrapper.className = "vtc-logo";
-
-  if (vtc.logo_url) {
-    const img = document.createElement("img");
-    img.src = vtc.logo_url;
-    img.alt = `${vtc.name} logo`;
-    logoWrapper.appendChild(img);
-  } else {
-    const span = document.createElement("span");
-    span.className = "vtc-logo-fallback";
-    span.textContent = (vtc.name || "?").trim().charAt(0).toUpperCase();
-    logoWrapper.appendChild(span);
-  }
-
-  // Main
-  const main = document.createElement("div");
-  main.className = "vtc-main";
-
-  const nameRow = document.createElement("div");
-  nameRow.className = "vtc-name-row";
-
-  const nameEl = document.createElement("div");
-  nameEl.className = "vtc-name";
-  nameEl.textContent = vtc.name || "(Unnamed VTC)";
-
-  const idEl = document.createElement("div");
-  idEl.className = "vtc-id";
-  idEl.textContent = `ID ${vtc.id ?? "?"}`;
-
-  nameRow.appendChild(nameEl);
-  nameRow.appendChild(idEl);
-
-  const tagsRow = document.createElement("div");
-  tagsRow.className = "vtc-tags";
-
-  const statusTag = document.createElement("span");
-  statusTag.className = "tag-pill tag-pill--status";
-  const status = (vtc.status || "unknown").toUpperCase();
-  statusTag.textContent = status;
-  tagsRow.appendChild(statusTag);
-
-  const recruit = vtc.recruitment || "";
-  if (recruit) {
-    const recruitTag = document.createElement("span");
-    recruitTag.className = "tag-pill";
-    if (recruitmentIsOpen(vtc)) {
-      recruitTag.classList.add("tag-pill--recruit-open");
-      recruitTag.textContent = "Recruitment: OPEN";
-    } else {
-      recruitTag.textContent = `Recruitment: ${recruit.toUpperCase()}`;
-    }
-    tagsRow.appendChild(recruitTag);
-  }
-
-  const linksRow = document.createElement("div");
-  linksRow.className = "vtc-links";
-
-  if (vtc.tmp_url || vtc.tmp_link) {
-    const url = vtc.tmp_url || vtc.tmp_link;
-    const link = document.createElement("a");
-    link.className = "link-pill link-pill--tmp";
-    link.href = url;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.appendChild(createIconTMP());
-    link.appendChild(document.createTextNode("TMP profile"));
-    linksRow.appendChild(link);
-  }
-
-  if (vtc.discord_url || vtc.discord) {
-    const url = vtc.discord_url || vtc.discord;
-    const link = document.createElement("a");
-    link.className = "link-pill link-pill--discord";
-    link.href = url;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.appendChild(createIconDiscord());
-    link.appendChild(document.createTextNode("Discord"));
-    linksRow.appendChild(link);
-  }
-
-  main.appendChild(nameRow);
-  main.appendChild(tagsRow);
-  if (linksRow.children.length > 0) {
-    main.appendChild(linksRow);
-  }
-
-  card.appendChild(logoWrapper);
-  card.appendChild(main);
-
-  return card;
-}
-
-function renderGroups(groups) {
-  resultsContainer.innerHTML = "";
-
-  const order = [
-    ["verified", "VERIFIED VTCS"],
-    ["validated", "VALIDATED VTCS"],
-    ["normal", "NORMAL VTCS"],
-  ];
-
-  let totalShown = 0;
-
-  for (const [key, label] of order) {
-    const list = groups[key];
-    if (!list || list.length === 0) continue;
-
-    totalShown += list.length;
-
-    const groupEl = document.createElement("section");
-    groupEl.className = "results-group";
-
-    const header = document.createElement("div");
-    header.className = "results-group-header";
-
-    const title = document.createElement("div");
-    title.className = "results-group-title";
-    title.textContent = label;
-
-    const count = document.createElement("div");
-    count.className = "results-group-count";
-    count.textContent = `${list.length} VTC(s)`;
-
-    header.appendChild(title);
-    header.appendChild(count);
-
-    groupEl.appendChild(header);
-
-    for (const vtc of list) {
-      groupEl.appendChild(renderVtcCard(vtc));
-    }
-
-    resultsContainer.appendChild(groupEl);
-  }
-
-  if (totalShown === 0) {
-    const empty = document.createElement("p");
-    empty.className = "results-summary";
-    empty.textContent =
-      "No VTCs match your filters. Try unchecking some filters or clearing the busy list.";
-    resultsContainer.appendChild(empty);
-  }
-
-  lastFilteredCount = totalShown;
-}
-
-// --- Filtering pipeline -----------------------------------------------------
-
-function recompute() {
-  if (!VTC_DB || VTC_DB.length === 0) {
-    resultsSummary.textContent =
-      "No VTC data loaded. Make sure vtcs_source.json is present next to this page.";
-    resultsContainer.innerHTML = "";
-    return;
-  }
-
-  const busyIds = parseBusyIds(busyInput.value);
-
-  const statusFlags = {
-    verified: filterVerified.checked,
-    validated: filterValidated.checked,
-    normal: filterNormal.checked,
-  };
-  const requireOpenRecruitment = filterRecruitmentOpen.checked;
-
-  const filtered = VTC_DB.filter((vtc) => {
-    if (!vtc || typeof vtc.id !== "number") return false;
-
-    // Exclude busy
-    if (busyIds.has(vtc.id)) return false;
+    if (busyIdSet.has(id)) return false;
 
     const status = (vtc.status || "normal").toLowerCase();
-    if (status === "verified" && !statusFlags.verified) return false;
-    if (status === "validated" && !statusFlags.validated) return false;
-    if (status !== "verified" && status !== "validated" && !statusFlags.normal)
-      return false;
+    if (status === "verified" && !filters.verified) return false;
+    if (status === "validated" && !filters.validated) return false;
+    if (status === "normal" && !filters.normal) return false;
 
-    if (requireOpenRecruitment && !recruitmentIsOpen(vtc)) return false;
+    if (filters.recruitmentOpenOnly) {
+      const recruitment = (vtc.recruitment || "").toUpperCase();
+      if (recruitment !== "OPEN") return false;
+    }
 
     return true;
   });
-
-  // Sort inside groups by name
-  filtered.sort((a, b) => {
-    const sa = (a.status || "").toLowerCase();
-    const sb = (b.status || "").toLowerCase();
-    if (sa !== sb) {
-      const order = { verified: 0, validated: 1, normal: 2, unknown: 3 };
-      return (order[sa] ?? 3) - (order[sb] ?? 3);
-    }
-    return (a.name || "").localeCompare(b.name || "");
-  });
-
-  const groups = groupByStatus(filtered);
-  renderGroups(groups);
-
-  const busyCount = busyIds.size;
-  resultsSummary.textContent = `Showing ${lastFilteredCount} VTC(s) after filtering. Busy list contains ${busyCount} ID(s).`;
 }
 
-// --- Data loading -----------------------------------------------------------
+/**
+ * Sort VTCs by status group, then by member count (descending),
+ * then by name.
+ */
+function sortVtcs(vtcs) {
+  return [...vtcs].sort((a, b) => {
+    const statusA = (a.status || "normal").toLowerCase();
+    const statusB = (b.status || "normal").toLowerCase();
 
-async function loadVtcsJson() {
-  const candidates = ["vtcs_source.json", "../vtcs_source.json"];
+    const rankA = VTC_STATUS_ORDER[statusA] ?? 99;
+    const rankB = VTC_STATUS_ORDER[statusB] ?? 99;
+    if (rankA !== rankB) return rankA - rankB;
 
-  for (const path of candidates) {
-    try {
-      const res = await fetch(path, { cache: "no-store" });
-      if (!res.ok) continue;
-      const data = await res.json();
-      if (!Array.isArray(data)) continue;
-      VTC_DB = data;
-      resultsSummary.textContent = `Loaded ${VTC_DB.length} VTC(s) from vtcs_source.json. Paste busy IDs and apply filters to get suggestions.`;
-      recompute();
-      return;
-    } catch (err) {
-      // Try next candidate
-    }
+    const membersA = Number(a.members || 0);
+    const membersB = Number(b.members || 0);
+    if (membersA !== membersB) return membersB - membersA;
+
+    const nameA = (a.name || "").toLowerCase();
+    const nameB = (b.name || "").toLowerCase();
+    return nameA.localeCompare(nameB);
+  });
+}
+
+/**
+ * Group VTCs by status for nicer UI sections.
+ */
+function groupByStatus(vtcs) {
+  const groups = { verified: [], validated: [], normal: [] };
+  vtcs.forEach((vtc) => {
+    const status = (vtc.status || "normal").toLowerCase();
+    if (status === "verified") groups.verified.push(vtc);
+    else if (status === "validated") groups.validated.push(vtc);
+    else groups.normal.push(vtc);
+  });
+  return groups;
+}
+
+/**
+ * Render the stats chip & summary text.
+ */
+function renderSummary(filtered, busyIdSet) {
+  const summaryText = document.getElementById("summary-text");
+  const statsChip = document.getElementById("stats-chip");
+
+  const total = allVtcs.length;
+  const filteredCount = filtered.length;
+  const busyCount = busyIdSet.size;
+
+  summaryText.textContent = `Showing ${filteredCount} VTC(s) after filtering. Busy list contains ${busyCount} ID(s).`;
+
+  if (filteredCount > 0) {
+    statsChip.classList.remove("hidden");
+    statsChip.textContent = `${filteredCount} invite-ready VTC${
+      filteredCount === 1 ? "" : "s"
+    }`;
+  } else {
+    statsChip.classList.add("hidden");
+  }
+}
+
+/**
+ * Render VTC cards into the right-hand list.
+ */
+function renderResults(filtered) {
+  const container = document.getElementById("results-container");
+  container.innerHTML = "";
+
+  if (!filtered.length) {
+    const p = document.createElement("p");
+    p.textContent =
+      "No VTCs matched your filters. Try unchecking some filters or checking your busy ID list.";
+    p.className = "panel-subtitle";
+    container.appendChild(p);
+    return;
   }
 
-  resultsSummary.textContent =
-    "Could not load vtcs_source.json. Place it in the same folder as this page or one level above.";
+  const grouped = groupByStatus(filtered);
+
+  function renderGroup(title, list, statusKey) {
+    if (!list.length) return;
+
+    const header = document.createElement("div");
+    header.className = "vtc-group-header";
+    header.textContent = `${title} (${list.length} VTC${
+      list.length === 1 ? "" : "s"
+    })`;
+    container.appendChild(header);
+
+    list.forEach((vtc) => {
+      const card = document.createElement("div");
+      card.className = "vtc-card";
+
+      // Left side: logo + text
+      const main = document.createElement("div");
+      main.className = "vtc-main";
+
+      const logo = document.createElement("div");
+      logo.className = "vtc-logo";
+
+      if (vtc.logo) {
+        const img = document.createElement("img");
+        img.src = vtc.logo;
+        img.alt = `${vtc.name} logo`;
+        logo.appendChild(img);
+      } else {
+        const fallback = document.createElement("span");
+        fallback.className = "vtc-logo-fallback";
+        fallback.textContent = (vtc.name || "VTC").slice(0, 3).toUpperCase();
+        logo.appendChild(fallback);
+      }
+
+      const textBlock = document.createElement("div");
+      textBlock.className = "vtc-text-block";
+
+      const nameRow = document.createElement("div");
+      nameRow.className = "vtc-name-row";
+
+      const name = document.createElement("div");
+      name.className = "vtc-name";
+      name.textContent = vtc.name || "Unnamed VTC";
+
+      const idSpan = document.createElement("div");
+      idSpan.className = "vtc-id";
+      idSpan.textContent = `ID ${vtc.id}`;
+
+      nameRow.appendChild(name);
+      nameRow.appendChild(idSpan);
+      textBlock.appendChild(nameRow);
+
+      const secondary = document.createElement("div");
+      secondary.className = "vtc-secondary-line";
+      const members = vtc.members != null ? `• ${vtc.members} member(s)` : "";
+      const games = vtc.games
+        ? `• ${vtc.games.toUpperCase().replace(/,/g, " / ")}`
+        : "";
+      secondary.textContent = [members, games].filter(Boolean).join(" ");
+      textBlock.appendChild(secondary);
+
+      const badgesRow = document.createElement("div");
+      badgesRow.className = "badges-row";
+
+      const statusBadge = document.createElement("span");
+      statusBadge.className = `badge badge-status-${statusKey}`;
+      statusBadge.textContent = statusKey.toUpperCase();
+      badgesRow.appendChild(statusBadge);
+
+      if ((vtc.recruitment || "").toUpperCase() === "OPEN") {
+        const recBadge = document.createElement("span");
+        recBadge.className = "badge badge-recruit-open";
+        recBadge.textContent = "RECRUITMENT: OPEN";
+        badgesRow.appendChild(recBadge);
+      }
+
+      textBlock.appendChild(badgesRow);
+
+      main.appendChild(logo);
+      main.appendChild(textBlock);
+
+      // Right side: icons
+      const actions = document.createElement("div");
+      actions.className = "vtc-actions";
+
+      if (vtc.tmp_url) {
+        const tmpLink = document.createElement("a");
+        tmpLink.href = vtc.tmp_url;
+        tmpLink.target = "_blank";
+        tmpLink.rel = "noreferrer";
+        tmpLink.className = "icon-link";
+        tmpLink.title = "Open TruckersMP profile";
+        const span = document.createElement("span");
+        span.textContent = "TMP";
+        tmpLink.appendChild(span);
+        actions.appendChild(tmpLink);
+      }
+
+      if (vtc.discord) {
+        const discLink = document.createElement("a");
+        discLink.href = vtc.discord;
+        discLink.target = "_blank";
+        discLink.rel = "noreferrer";
+        discLink.className = "icon-link";
+        discLink.title = "Open Discord invite";
+        const span = document.createElement("span");
+        span.textContent = "DC";
+        discLink.appendChild(span);
+        actions.appendChild(discLink);
+      }
+
+      card.appendChild(main);
+      card.appendChild(actions);
+
+      container.appendChild(card);
+    });
+  }
+
+  renderGroup("Verified VTCs", grouped.verified, "verified");
+  renderGroup("Validated VTCs", grouped.validated, "validated");
+  renderGroup("Normal VTCs", grouped.normal, "normal");
 }
 
-// --- Event wiring -----------------------------------------------------------
-
-applyBtn.addEventListener("click", recompute);
-
-for (const cb of [
-  filterVerified,
-  filterValidated,
-  filterNormal,
-  filterRecruitmentOpen,
-]) {
-  cb.addEventListener("change", recompute);
+/**
+ * Load vtcs_source.json on page load.
+ */
+async function loadVtcs() {
+  try {
+    const res = await fetch("vtcs_source.json", { cache: "no-store" });
+    if (!res.ok) {
+      console.error("Failed to load vtcs_source.json", res.status);
+      return;
+    }
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      allVtcs = data;
+    } else if (Array.isArray(data.vtcs)) {
+      allVtcs = data.vtcs;
+    } else {
+      console.error("Unexpected JSON structure in vtcs_source.json");
+      allVtcs = [];
+    }
+  } catch (err) {
+    console.error("Error loading vtcs_source.json", err);
+    allVtcs = [];
+  }
 }
 
-// Re-filter as user types, but debounced a bit
-let busyDebounce = null;
-busyInput.addEventListener("input", () => {
-  if (busyDebounce) clearTimeout(busyDebounce);
-  busyDebounce = setTimeout(recompute, 350);
+/**
+ * Main initialization.
+ */
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadVtcs();
+
+  const busyInput = document.getElementById("busy-ids-input");
+  const btn = document.getElementById("apply-filters-btn");
+
+  function runFiltering() {
+    const busySet = parseBusyIds(busyInput.value);
+
+    const filters = {
+      verified: document.getElementById("filter-verified").checked,
+      validated: document.getElementById("filter-validated").checked,
+      normal: document.getElementById("filter-normal").checked,
+      recruitmentOpenOnly: document.getElementById("filter-recruitment-open").checked,
+    };
+
+    const filtered = sortVtcs(filterVtcs(busySet, filters));
+    renderSummary(filtered, busySet);
+    renderResults(filtered);
+  }
+
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    runFiltering();
+  });
+
+  // Run once with default filters in case user wants to browse all
+  runFiltering();
 });
-
-loadVtcsJson();

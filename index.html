@@ -3,772 +3,142 @@
 <head>
   <meta charset="UTF-8" />
   <title>TruckersMP VTC Availability Helper</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    :root {
-      --bg: #050814;
-      --bg-alt: #070b1a;
-      --panel: #0c1024;
-      --panel-soft: #101632;
-      --border-soft: #232a4a;
-      --accent: #00c3ff;
-      --accent-soft: rgba(0,195,255,0.12);
-      --accent-2: #7b5cff;
-      --text-main: #f5f7ff;
-      --text-sub: #a4add6;
-      --text-muted: #7b82a6;
-      --danger: #ff5573;
-      --radius-lg: 18px;
-      --radius-md: 12px;
-      --shadow-soft: 0 22px 55px rgba(0,0,0,0.55);
-      --badge-radius: 999px;
-      --font-sans: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      min-height: 100vh;
-      font-family: var(--font-sans);
-      background:
-        radial-gradient(circle at 0% 0%, #18214a 0, transparent 50%),
-        radial-gradient(circle at 100% 0%, #1e375c 0, transparent 55%),
-        radial-gradient(circle at 0% 100%, #171f3c 0, transparent 50%),
-        var(--bg);
-      color: var(--text-main);
-      display: flex;
-      justify-content: center;
-      padding: 32px 16px 40px;
-    }
-
-    .shell {
-      width: 100%;
-      max-width: 1220px;
-      background: radial-gradient(circle at top, rgba(123,92,255,0.08), transparent 55%) var(--bg-alt);
-      border-radius: 24px;
-      box-shadow: var(--shadow-soft);
-      border: 1px solid rgba(255,255,255,0.04);
-      padding: 20px 22px 24px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .shell::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background:
-        linear-gradient(120deg, rgba(0,195,255,0.12), transparent 45%, rgba(123,92,255,0.2)),
-        radial-gradient(circle at 120% -10%, rgba(0,195,255,0.17), transparent 55%);
-      opacity: 0.45;
-      mix-blend-mode: screen;
-      pointer-events: none;
-    }
-
-    .shell-inner {
-      position: relative;
-      z-index: 1;
-    }
-
-    header {
-      display: flex;
-      gap: 16px;
-      align-items: center;
-      margin-bottom: 20px;
-      padding-bottom: 14px;
-      border-bottom: 1px solid rgba(255,255,255,0.05);
-    }
-
-    .logo-circle {
-      width: 40px;
-      height: 40px;
-      border-radius: 12px;
-      background: radial-gradient(circle at 30% 20%, #ffffff, #00c3ff 40%, #7b5cff 80%);
-      box-shadow: 0 0 0 1px rgba(255,255,255,0.15), 0 14px 30px rgba(0,0,0,0.65);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #020412;
-      font-weight: 800;
-      font-size: 20px;
-      letter-spacing: 0.03em;
-    }
-
-    .headline {
-      flex: 1;
-    }
-    .headline h1 {
-      margin: 0;
-      font-size: 22px;
-      letter-spacing: 0.03em;
-      text-transform: uppercase;
-    }
-    .headline p {
-      margin: 4px 0 0;
-      font-size: 13px;
-      color: var(--text-sub);
-    }
-
-    .tagline-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: rgba(0,0,0,0.24);
-      border: 1px solid rgba(255,255,255,0.1);
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-top: 8px;
-    }
-    .tagline-pill span {
-      color: var(--accent);
-      font-weight: 600;
-    }
-
-    .columns {
-      display: grid;
-      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-      gap: 18px;
-    }
-
-    @media (max-width: 880px) {
-      .columns {
-        grid-template-columns: minmax(0, 1fr);
-      }
-    }
-
-    .panel {
-      background: linear-gradient(145deg, rgba(9,13,30,0.96), rgba(8,14,36,0.96));
-      border-radius: var(--radius-lg);
-      border: 1px solid var(--border-soft);
-      padding: 16px 16px 18px;
-      box-shadow: 0 18px 40px rgba(0,0,0,0.6);
-    }
-
-    .panel-header {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-
-    .panel-title {
-      font-size: 15px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-
-    .panel-subtitle {
-      margin: 0;
-      font-size: 12px;
-      color: var(--text-sub);
-      line-height: 1.45;
-    }
-
-    .hint {
-      font-size: 11.5px;
-      color: var(--text-muted);
-      margin: 6px 0 10px;
-    }
-    .hint strong {
-      color: var(--accent);
-      font-weight: 500;
-    }
-
-    textarea {
-      width: 100%;
-      min-height: 120px;
-      border-radius: 14px;
-      border: 1px solid rgba(84,99,170,0.7);
-      background: radial-gradient(circle at top left, rgba(0,195,255,0.12), transparent 55%) #050818;
-      padding: 9px 11px;
-      color: var(--text-main);
-      resize: vertical;
-      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-size: 11.5px;
-      line-height: 1.4;
-      outline: none;
-      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.4);
-    }
-    textarea::placeholder {
-      color: rgba(146,155,202,0.7);
-    }
-    textarea:focus {
-      border-color: var(--accent);
-      box-shadow:
-        0 0 0 1px rgba(0,195,255,0.3),
-        0 0 0 6px rgba(0,195,255,0.12);
-    }
-
-    .filters-row {
-      display: flex;
-      gap: 10px;
-      margin-top: 12px;
-      flex-wrap: wrap;
-    }
-
-    .filter-block {
-      flex: 1 1 180px;
-      border-radius: var(--radius-md);
-      border: 1px solid rgba(68,81,146,0.7);
-      background: radial-gradient(circle at top left, rgba(123,92,255,0.18), transparent 60%) #060a1b;
-      padding: 10px 11px 9px;
-      position: relative;
-      overflow: hidden;
-    }
-    .filter-block::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: radial-gradient(circle at -10% -20%, rgba(0,195,255,0.5), transparent 55%);
-      opacity: 0.4;
-      mix-blend-mode: screen;
-      pointer-events: none;
-    }
-
-    .filter-block h3 {
-      margin: 0 0 8px;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.15em;
-      color: var(--text-sub);
-    }
-
-    .filter-options {
-      position: relative;
-      z-index: 1;
-      display: grid;
-      gap: 5px;
-      align-items: flex-start;
-    }
-
-    .filter-options label {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11.5px;
-      color: var(--text-main);
-    }
-    .filter-options input[type="checkbox"] {
-      accent-color: var(--accent);
-      width: 14px;
-      height: 14px;
-    }
-
-    .primary-btn {
-      margin-top: 12px;
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      padding: 7px 16px;
-      border-radius: 999px;
-      border: none;
-      background: radial-gradient(circle at 0% 0%, #ffffff, #00c3ff 35%, #7b5cff 85%);
-      color: #020412;
-      font-weight: 600;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      cursor: pointer;
-      box-shadow: 0 16px 35px rgba(0,0,0,0.6);
-    }
-    .primary-btn span.icon {
-      display: inline-flex;
-      width: 18px;
-      height: 18px;
-      border-radius: 999px;
-      background: rgba(2,4,18,0.12);
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
-    }
-    .primary-btn:hover {
-      filter: brightness(1.03);
-      transform: translateY(-0.5px);
-    }
-
-    .result-count {
-      margin-top: 8px;
-      font-size: 11.5px;
-      color: var(--text-muted);
-    }
-
-    .column-header-line {
-      margin-bottom: 10px;
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 8px;
-    }
-    .column-header-line h2 {
-      margin: 0;
-      font-size: 14px;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-    }
-    .column-header-line span {
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-
-    .group-label {
-      margin: 10px 0 6px;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-      color: var(--accent);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .group-label small {
-      border-radius: var(--badge-radius);
-      padding: 2px 7px;
-      font-size: 10px;
-      background: var(--accent-soft);
-      color: var(--accent);
-    }
-
-    .vtc-list {
-      max-height: 520px;
-      overflow: auto;
-      padding-right: 4px;
-      margin-top: 4px;
-    }
-    .vtc-list::-webkit-scrollbar {
-      width: 6px;
-    }
-    .vtc-list::-webkit-scrollbar-thumb {
-      background: rgba(255,255,255,0.12);
-      border-radius: 999px;
-    }
-
-    .vtc-card {
-      display: flex;
-      align-items: flex-start;
-      gap: 9px;
-      padding: 8px 9px;
-      border-radius: 12px;
-      border: 1px solid rgba(58,72,134,0.85);
-      background: radial-gradient(circle at top left, rgba(0,195,255,0.09), transparent 60%) #050915;
-      margin-bottom: 7px;
-    }
-
-    .vtc-logo {
-      width: 28px;
-      height: 28px;
-      border-radius: 10px;
-      background: radial-gradient(circle at 30% 20%, #ffffff, #7b5cff 40%, #00c3ff 80%);
-      box-shadow: 0 0 0 1px rgba(0,0,0,0.7);
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      font-size: 12px;
-      font-weight: 700;
-      color: #020412;
-      text-transform: uppercase;
-    }
-
-    .vtc-logo img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-
-    .vtc-main {
-      flex: 1;
-      min-width: 0;
-    }
-    .vtc-title-row {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin-bottom: 2px;
-    }
-    .vtc-name {
-      font-size: 12.5px;
-      font-weight: 600;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-      overflow: hidden;
-    }
-    .badge {
-      font-size: 10px;
-      padding: 1px 6px;
-      border-radius: var(--badge-radius);
-      border: 1px solid rgba(255,255,255,0.14);
-      background: rgba(0,0,0,0.35);
-      color: var(--text-sub);
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-    }
-    .badge-open {
-      border-color: rgba(3,208,130,0.5);
-      color: #5bf2a8;
-      background: rgba(3,208,130,0.13);
-    }
-    .badge-id {
-      border-color: rgba(78,99,176,0.8);
-      color: var(--text-sub);
-    }
-
-    .vtc-meta-line {
-      font-size: 11px;
-      color: var(--text-muted);
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-    }
-
-    .link-row {
-      display: inline-flex;
-      gap: 6px;
-      margin-top: 4px;
-    }
-    .chip-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 10.5px;
-      padding: 2px 7px;
-      border-radius: var(--badge-radius);
-      background: rgba(19,26,60,0.9);
-      border: 1px solid rgba(76,95,176,0.9);
-      color: var(--text-sub);
-      text-decoration: none;
-    }
-    .chip-link:hover {
-      border-color: var(--accent);
-      color: var(--accent);
-    }
-
-    .icon-tmp, .icon-discord {
-      width: 12px;
-      height: 12px;
-      display: inline-block;
-    }
-    .icon-tmp svg, .icon-discord svg {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-
-    footer {
-      margin-top: 14px;
-      padding-top: 10px;
-      border-top: 1px solid rgba(255,255,255,0.05);
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      font-size: 10.5px;
-      color: var(--text-muted);
-      flex-wrap: wrap;
-    }
-    footer a {
-      color: var(--accent);
-      text-decoration: none;
-    }
-    footer a:hover {
-      text-decoration: underline;
-    }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="style.css" />
+  <script defer src="app.js"></script>
 </head>
 <body>
-<div class="shell">
-  <div class="shell-inner">
-    <header>
-      <div class="logo-circle">VA</div>
-      <div class="headline">
-        <h1>TruckersMP VTC Availability Helper</h1>
-        <p>Find VTCs that are free on your convoy date, based on real TruckersMP event data.</p>
-        <div class="tagline-pill">
-          Paste <span>TruckersMP event links</span> from your date &amp; get invite-ready VTC suggestions.
+  <div class="page-shell">
+    <!-- Top hero / header -->
+    <header class="hero">
+      <div class="hero-left">
+        <div class="app-logo">
+          <span class="logo-text">VA</span>
         </div>
+        <div>
+          <h1>TRUCKERSMP VTC AVAILABILITY HELPER</h1>
+          <p class="hero-subtitle">
+            Find VTCs that are free on your convoy date, based on real TruckersMP event data.
+          </p>
+
+          <div class="hero-pill">
+            <span class="pill-label">Paste</span>
+            <span class="pill-text">
+              TruckersMP event links
+              <span class="pill-text-muted">from your date &amp; get invite-ready VTC suggestions.</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-right">
+        <a
+          href="https://truckersmp.com/events"
+          target="_blank"
+          rel="noreferrer"
+          class="link-button"
+        >
+          Open TruckersMP events page
+        </a>
       </div>
     </header>
 
-    <div class="columns">
-      <!-- LEFT: Busy VTCs / filters -->
-      <section class="panel">
-        <div class="panel-header">
-          <div>
-            <div class="panel-title">1. Busy VTCs from events</div>
-          </div>
-        </div>
+    <main class="layout">
+      <!-- LEFT: Busy VTC input & filters -->
+      <section class="panel panel-left">
+        <h2>1. PASTE YOUR EVENT LINKS (AND SCAN RESULT)</h2>
 
-        <p class="panel-subtitle">
-          On your PC, run the Python scanner with <strong>every TruckersMP event URL scheduled for the date of your convoy</strong> –  
-          <strong>including your own event link</strong>. Then paste the <strong>busy VTC IDs</strong> that the script outputs into the box below.
+        <p>
+          1)&nbsp;Copy every
+          <strong>TruckersMP event URL</strong> scheduled for the date of your convoy
+          (including <strong>your own event link</strong>).<br />
+          2)&nbsp;On your PC, run the Python scanner with those links.<br />
+          3)&nbsp;Paste the <strong>busy VTC IDs</strong> that the script prints into the box below.
         </p>
+
         <p class="hint">
-          Recommended: copy all events from the TruckersMP events page for that day, add your own event, run the script, then paste the resulting ID list here.
+          This box expects <strong>VTC IDs</strong> (like
+          <code>7, 387, 65284</code>), not the event URLs themselves.
+          The Python tool turns your event links into those IDs.
         </p>
 
-        <textarea id="busyVtcsInput"
-                  placeholder="Example (IDs from Python output):&#10;7, 387, 65284&#10;72566&#10;..."></textarea>
+        <div class="card input-card">
+          <label for="busy-ids-input" class="input-label">
+            Example (IDs from Python output):
+          </label>
+          <textarea
+            id="busy-ids-input"
+            placeholder="7, 387, 65284
+72566
+..."
+          ></textarea>
+        </div>
 
-        <div class="filters-row">
-          <div class="filter-block">
+        <!-- Filters block -->
+        <div class="filters-grid">
+          <div class="card filter-card">
             <h3>Filters</h3>
-            <div class="filter-options">
-              <label>
-                <input type="checkbox" id="filterVerified" checked>
-                Verified
-              </label>
-              <label>
-                <input type="checkbox" id="filterValidated" checked>
-                Validated
-              </label>
-              <label>
-                <input type="checkbox" id="filterNormal" checked>
-                Normal
-              </label>
-              <label>
-                <input type="checkbox" id="filterRecruitmentOpen" checked>
-                Only VTCs with recruitment <strong>OPEN</strong>
-              </label>
-            </div>
+
+            <label class="checkbox-row">
+              <input type="checkbox" id="filter-verified" checked />
+              <span>Verified</span>
+            </label>
+
+            <label class="checkbox-row">
+              <input type="checkbox" id="filter-validated" checked />
+              <span>Validated</span>
+            </label>
+
+            <label class="checkbox-row">
+              <input type="checkbox" id="filter-normal" checked />
+              <span>Normal</span>
+            </label>
+
+            <label class="checkbox-row checkbox-row-accent">
+              <input type="checkbox" id="filter-recruitment-open" checked />
+              <span>Only VTCs with recruitment <strong>OPEN</strong></span>
+            </label>
           </div>
         </div>
 
-        <button class="primary-btn" id="applyFiltersBtn">
-          <span class="icon">⟳</span>
-          Apply filters
-        </button>
-        <div class="result-count" id="countsText">
-          Loading VTCs from <code>vtcs_source.json</code>…
-        </div>
+        <button id="apply-filters-btn">APPLY FILTERS</button>
+
+        <p id="summary-text" class="summary-text">
+          Showing 0 VTC(s) after filtering. Busy list contains 0 ID(s).
+        </p>
       </section>
 
       <!-- RIGHT: Suggested VTCs -->
-      <section class="panel">
-        <div class="column-header-line">
-          <h2>2. Suggested VTCs to invite</h2>
-          <span>VTCs below are in <code>vtcs_source.json</code>, not in your busy list, and match your filters.</span>
+      <section class="panel panel-right">
+        <div class="panel-header">
+          <div>
+            <h2>2. SUGGESTED VTCS TO INVITE</h2>
+            <p class="panel-subtitle">
+              These VTCs are in the shared database, are not in your busy list, and match your filters.
+            </p>
+          </div>
+          <div id="stats-chip" class="stats-chip hidden"></div>
         </div>
 
-        <div id="vtcGroupsContainer">
-          <!-- JS injects groups + cards here -->
+        <div id="results-container" class="results-container">
+          <!-- JS will inject VTC cards here -->
         </div>
       </section>
-    </div>
+    </main>
 
-    <footer>
-      <div>Powered by your Python scraper + GitHub Pages. Paste new <code>vtcs_source.json</code> anytime to refresh data.</div>
-      <div>Project: <a href="https://github.com/no3ll/TruckersMP-VTC-Availability-Scanner" target="_blank" rel="noopener">TruckersMP-VTC-Availability-Scanner</a></div>
+    <footer class="footer">
+      <p>Developed by Noel &copy; 2025 – All rights reserved.</p>
+      <p>
+        Project:
+        <a
+          href="https://github.com/no3ll/TruckersMP-VTC-Availability-Scanner"
+          target="_blank"
+          rel="noreferrer"
+        >
+          TruckersMP-VTC-Availability-Scanner
+        </a>
+      </p>
     </footer>
   </div>
-</div>
-
-<script>
-  const state = {
-    vtcs: [],
-    busyIds: new Set()
-  };
-
-  function parseBusyIds(raw) {
-    const tokens = raw.split(/[^0-9]+/g).filter(Boolean);
-    return new Set(tokens.map(t => Number.parseInt(t, 10)).filter(n => !Number.isNaN(n)));
-  }
-
-  function statusLabel(vtc) {
-    if (vtc.status === "verified") return "Verified";
-    if (vtc.status === "validated") return "Validated";
-    return "Normal";
-  }
-
-  function statusGroupKey(vtc) {
-    if (vtc.status === "verified") return "verified";
-    if (vtc.status === "validated") return "validated";
-    return "normal";
-  }
-
-  function firstLetters(name) {
-    const parts = (name || "").split(/\s+/).filter(Boolean);
-    if (!parts.length) return "?";
-    if (parts.length === 1) return parts[0].slice(0,2).toUpperCase();
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  }
-
-  function rebuildList() {
-    const verifiedOn = document.getElementById("filterVerified").checked;
-    const validatedOn = document.getElementById("filterValidated").checked;
-    const normalOn = document.getElementById("filterNormal").checked;
-    const requireOpen = document.getElementById("filterRecruitmentOpen").checked;
-
-    const allowedStatus = new Set();
-    if (verifiedOn) allowedStatus.add("verified");
-    if (validatedOn) allowedStatus.add("validated");
-    if (normalOn) allowedStatus.add("normal");
-
-    const free = state.vtcs.filter(vtc => {
-      if (!allowedStatus.has(vtc.status || "normal")) return false;
-      if (requireOpen && (vtc.recruitment_status || "").toUpperCase() !== "OPEN") return false;
-      if (state.busyIds.has(Number(vtc.id))) return false;
-      return true;
-    });
-
-    const groups = {
-      verified: [],
-      validated: [],
-      normal: []
-    };
-    free.forEach(vtc => {
-      groups[statusGroupKey(vtc)].push(vtc);
-    });
-
-    const container = document.getElementById("vtcGroupsContainer");
-    container.innerHTML = "";
-
-    function renderGroup(title, key, accentColor) {
-      const list = groups[key];
-      if (!list.length) return;
-      const header = document.createElement("div");
-      header.className = "group-label";
-      header.style.color = accentColor;
-      const label = document.createElement("span");
-      label.textContent = title.toUpperCase();
-      const count = document.createElement("small");
-      count.textContent = `${list.length} VTC(s)`;
-      header.append(label, count);
-      container.appendChild(header);
-
-      const wrapper = document.createElement("div");
-      wrapper.className = "vtc-list";
-
-      list.forEach(vtc => {
-        const card = document.createElement("div");
-        card.className = "vtc-card";
-
-        const logo = document.createElement("div");
-        logo.className = "vtc-logo";
-        if (vtc.logo_url) {
-          const img = document.createElement("img");
-          img.src = vtc.logo_url;
-          img.alt = vtc.name || "VTC logo";
-          logo.appendChild(img);
-        } else {
-          logo.textContent = firstLetters(vtc.name || "");
-        }
-
-        const main = document.createElement("div");
-        main.className = "vtc-main";
-
-        const titleRow = document.createElement("div");
-        titleRow.className = "vtc-title-row";
-
-        const nameEl = document.createElement("div");
-        nameEl.className = "vtc-name";
-        nameEl.textContent = vtc.name || `VTC ${vtc.id}`;
-
-        const idBadge = document.createElement("span");
-        idBadge.className = "badge badge-id";
-        idBadge.textContent = `ID ${vtc.id}`;
-
-        const recBadge = document.createElement("span");
-        recBadge.className = "badge " + ((vtc.recruitment_status || "").toUpperCase() === "OPEN" ? "badge-open" : "");
-        recBadge.textContent = `Recruitment: ${(vtc.recruitment_status || "UNKNOWN").toUpperCase()}`;
-
-        titleRow.append(nameEl, idBadge, recBadge);
-
-        const metaLine = document.createElement("div");
-        metaLine.className = "vtc-meta-line";
-        const statusText = document.createElement("span");
-        statusText.textContent = statusLabel(vtc);
-        metaLine.appendChild(statusText);
-
-        const linksRow = document.createElement("div");
-        linksRow.className = "link-row";
-
-        if (vtc.truckersmp_url) {
-          const tmpLink = document.createElement("a");
-          tmpLink.href = vtc.truckersmp_url;
-          tmpLink.target = "_blank";
-          tmpLink.rel = "noopener";
-          tmpLink.className = "chip-link";
-          tmpLink.innerHTML = `
-            <span class="icon-tmp">
-              <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.2"/>
-                <path d="M4 8h8M8 4v8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-              </svg>
-            </span>
-            TMP profile
-          `;
-          linksRow.appendChild(tmpLink);
-        }
-
-        if (vtc.discord_invite) {
-          const discordLink = document.createElement("a");
-          discordLink.href = vtc.discord_invite;
-          discordLink.target = "_blank";
-          discordLink.rel = "noopener";
-          discordLink.className = "chip-link";
-          discordLink.innerHTML = `
-            <span class="icon-discord">
-              <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-                <rect x="4" y="8" width="24" height="16" rx="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
-                <circle cx="13" cy="16" r="2" fill="currentColor"/>
-                <circle cx="19" cy="16" r="2" fill="currentColor"/>
-              </svg>
-            </span>
-            Discord
-          `;
-          linksRow.appendChild(discordLink);
-        }
-
-        main.append(titleRow, metaLine, linksRow);
-        card.append(logo, main);
-        wrapper.appendChild(card);
-      });
-
-      container.appendChild(wrapper);
-    }
-
-    renderGroup("Verified VTCs", "verified", "#00e0ff");
-    renderGroup("Validated VTCs", "validated", "#7bffb7");
-    renderGroup("Normal VTCs", "normal", "#c3c7ff");
-
-    const countsEl = document.getElementById("countsText");
-    countsEl.textContent =
-      `Showing ${free.length} VTC(s) after filtering. Busy list contains ${state.busyIds.size} ID(s).`;
-  }
-
-  async function loadVtcs() {
-    try {
-      const res = await fetch("vtcs_source.json", { cache: "no-store" });
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      const data = await res.json();
-      state.vtcs = Array.isArray(data) ? data : [];
-      document.getElementById("countsText").textContent =
-        `Loaded ${state.vtcs.length} VTC(s) from vtcs_source.json. Paste busy IDs and apply filters.`;
-      rebuildList();
-    } catch (err) {
-      console.error(err);
-      document.getElementById("countsText").textContent =
-        "Failed to load vtcs_source.json. Make sure it exists at the repo root.";
-    }
-  }
-
-  document.getElementById("applyFiltersBtn").addEventListener("click", () => {
-    const raw = document.getElementById("busyVtcsInput").value || "";
-    state.busyIds = parseBusyIds(raw);
-    rebuildList();
-  });
-
-  document.querySelectorAll("#filterVerified,#filterValidated,#filterNormal,#filterRecruitmentOpen")
-    .forEach(cb => cb.addEventListener("change", rebuildList));
-
-  loadVtcs();
-</script>
 </body>
 </html>
